@@ -132,7 +132,6 @@ onMounted(() => {
 <template>
   <div :class="['w-full h-screen flex overflow-hidden font-sans', isDark ? 'bg-slate-900 text-white' : 'bg-[#F8FAFC] text-slate-900']">
 
-    <!-- 1. 登录页 -->
     <div v-if="!user" class="fixed inset-0 z-50 flex items-center justify-center bg-[#F2F2F7]">
       <div class="bg-white p-12 rounded-[3rem] shadow-2xl text-center max-w-md w-full mx-4">
         <div class="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black text-2xl mx-auto mb-6">F</div>
@@ -142,7 +141,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 2. 侧边栏 -->
     <aside :class="['w-72 border-r flex flex-col shrink-0 transition-colors', isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200']">
       <div class="p-6">
         <div :class="['flex items-center gap-3 p-3 rounded-2xl border', isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-100']">
@@ -167,20 +165,15 @@ onMounted(() => {
       <div class="p-4 border-t"><button @click="user=null" class="flex items-center gap-2 text-gray-400 text-sm hover:text-red-500 transition-colors"><LogOut size="16"/> 退出登录</button></div>
     </aside>
 
-    <!-- 3. 主显示区 -->
     <main class="flex-1 flex flex-col overflow-hidden">
-      <!-- 头部导航 -->
       <header :class="['h-16 border-b flex items-center justify-between px-8 shrink-0', isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white/50 border-slate-200 backdrop-blur-md']">
         <div class="flex items-center gap-2 text-sm text-gray-400"><Shield size="16"/> Dashboard <ChevronRight size="14"/> {{activeLeague?.cn}}</div>
         <button @click="toggleTheme" class="p-2 rounded-full border bg-white shadow-sm hover:rotate-12 transition-transform"><Sun v-if="isDark" class="text-yellow-500"/><Moon v-else class="text-blue-500"/></button>
       </header>
 
-      <!-- 视图容器 -->
       <div class="flex-1 overflow-y-auto p-8 scroll-smooth no-scrollbar">
 
-        <!-- A. 联赛主页 Dashboard -->
         <div v-if="currentView === 'dashboard'" class="space-y-8 animate-in">
-          <!-- 联赛卡片 -->
           <div :class="['p-10 rounded-[2.5rem] border shadow-xl relative overflow-hidden flex justify-between items-end', isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100']">
             <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
             <div class="relative z-10">
@@ -199,7 +192,6 @@ onMounted(() => {
           </div>
 
           <div class="grid grid-cols-3 gap-8">
-            <!-- 积分榜列表 -->
             <div :class="['col-span-2 rounded-3xl border shadow-sm overflow-hidden', isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100']">
               <div class="p-6 border-b flex justify-between items-center bg-gray-50/30">
                 <h3 class="font-bold flex items-center gap-2"><List class="text-blue-500"/> 实时积分榜</h3>
@@ -207,20 +199,23 @@ onMounted(() => {
               </div>
               <table class="w-full text-sm text-left">
                 <thead class="text-xs text-gray-400 uppercase"><tr class="border-b">
-                  <th class="p-5 font-bold">排名</th><th class="p-5 font-bold">球队</th><th class="p-5 font-bold">赛</th><th class="p-5 font-bold">积分</th>
+                  <th class="p-5 font-bold">排名</th><th class="p-5 font-bold">球队</th><th class="p-5 font-bold text-center">赛</th><th class="p-5 font-bold text-center">胜</th><th class="p-5 font-bold text-center">平</th><th class="p-5 font-bold text-center">负</th><th class="p-5 font-bold text-center">进/失</th><th class="p-5 font-bold text-center">积分</th>
                 </tr></thead>
                 <tbody class="divide-y">
                   <tr v-for="t in teams.slice(0, 12)" :key="t.id" @click="navigateTo('team_detail', t)" class="hover:bg-blue-50/50 cursor-pointer transition-colors">
                     <td class="p-5"><span :class="['w-8 h-8 flex items-center justify-center rounded-lg font-bold', t.stats.rank <= 4 ? 'bg-blue-100 text-blue-700' : 'text-gray-400']">{{t.stats.rank}}</span></td>
                     <td class="p-5 flex items-center gap-4"><img :src="t.logo" class="w-8 h-8 object-contain"> <span class="font-bold">{{t.name}}</span></td>
-                    <td class="p-5 opacity-60">{{t.stats.played}}</td>
-                    <td class="p-5 font-black text-xl text-blue-600">{{t.stats.pts}}</td>
+                    <td class="p-5 opacity-60 text-center font-medium">{{t.stats.played}}</td>
+                    <td class="p-5 text-center font-bold text-green-600 bg-green-50/30 rounded-lg">{{t.stats.won}}</td>
+                    <td class="p-5 text-center font-medium text-gray-400">{{t.stats.draw}}</td>
+                    <td class="p-5 text-center font-medium text-red-500">{{t.stats.lost}}</td>
+                    <td class="p-5 text-center font-mono text-xs text-gray-500">{{t.stats.gf}} / {{t.stats.ga}}</td>
+                    <td class="p-5 font-black text-xl text-blue-600 text-center">{{t.stats.pts}}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            <!-- 右侧小榜单 -->
             <div class="col-span-1 space-y-8">
                <div v-for="type in ['goals', 'assists']" :key="type" :class="['p-6 rounded-3xl border shadow-sm', isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100']">
                   <div class="flex justify-between mb-6">
@@ -229,7 +224,7 @@ onMounted(() => {
                         <Footprints v-else class="text-green-500" size="18"/>
                         {{type === 'goals' ? '射手榜' : '助攻榜'}}
                     </h3>
-                    <button @click="navigateTo('full_ranking', null, type)" class="text-xs text-blue-600 font-bold">详情</button>
+                    <button @click="navigateTo('full_ranking', null, type)" class="text-xs text-blue-600 font-bold">查看详情</button>
                   </div>
                   <div class="space-y-4">
                     <div v-for="(p, i) in (type === 'goals' ? scorers : assists)" :key="i" @click="navigateTo('player_detail', {person_id: p.id})" class="flex items-center gap-3 hover:bg-slate-50 p-2 rounded-xl cursor-pointer group">
@@ -244,7 +239,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- B. 球队详情 Team View -->
         <div v-if="currentView === 'team_detail'" class="animate-in slide-in-from-right-4">
           <button @click="goBack" class="mb-6 flex items-center gap-2 text-gray-400 hover:text-blue-600 transition-colors font-bold"><ArrowLeft size="18"/> 返回</button>
           <div class="p-12 rounded-[3rem] bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex items-center gap-10 mb-8 shadow-2xl">
@@ -268,14 +262,12 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- C. 球员详情 Player View (精装修) -->
         <div v-if="currentView === 'player_detail'" class="animate-in slide-in-from-right-4">
           <button @click="goBack" class="mb-6 flex items-center gap-2 text-gray-400 hover:text-blue-600 transition-colors font-bold"><ArrowLeft size="18"/> 返回列表</button>
 
           <div v-if="loading && !playerProfile" class="p-20 text-center text-gray-400 flex flex-col items-center"><Loader2 class="animate-spin mb-4" size="40"/> 正在同步档案...</div>
 
           <template v-else-if="playerProfile">
-            <!-- 头部 -->
             <div class="p-10 rounded-[3rem] bg-slate-800 text-white flex items-center gap-10 mb-8 relative overflow-hidden shadow-2xl">
                <div class="absolute right-0 top-0 w-96 h-96 bg-blue-500/10 blur-[120px]"></div>
                <div class="relative">
@@ -297,7 +289,6 @@ onMounted(() => {
             </div>
 
             <div class="grid grid-cols-3 gap-8">
-              <!-- 左侧：球员详情模块 -->
               <div class="col-span-1 space-y-8">
                 <div class="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border shadow-sm">
                    <h3 class="font-black text-lg mb-8 flex items-center gap-3"><User class="text-blue-500" size="22"/> 球员资料详情</h3>
@@ -325,14 +316,12 @@ onMounted(() => {
                       </div>
                    </div>
                 </div>
-                <!-- 雷达图 -->
                 <div v-if="radarOption" class="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border shadow-sm">
                    <div class="text-center mb-6"><span class="text-xs text-gray-400 font-black uppercase tracking-widest">六维能力评分</span></div>
                    <div class="h-64 w-full"><v-chart :option="radarOption" autoresize /></div>
                 </div>
               </div>
 
-              <!-- 右侧：职业生涯数据 -->
               <div class="col-span-2">
                 <div class="bg-white dark:bg-slate-800 rounded-[2.5rem] border shadow-sm overflow-hidden">
                   <div class="p-8 border-b bg-gray-50/50 dark:bg-slate-700/30 flex items-center gap-3 font-black text-lg"><List size="22" class="text-blue-500"/> 球员职业生涯统计</div>
@@ -357,7 +346,6 @@ onMounted(() => {
           </template>
         </div>
 
-        <!-- D. 全屏排行榜视图 Full Ranking -->
         <div v-if="currentView === 'full_ranking'" class="animate-in fade-in slide-in-from-bottom-4">
            <button @click="goBack" class="mb-6 flex items-center gap-2 text-gray-400 hover:text-blue-600 transition-colors font-bold"><ArrowLeft size="18"/> 返回首页</button>
            <div class="bg-white dark:bg-slate-800 rounded-[3rem] border shadow-2xl overflow-hidden">
@@ -370,14 +358,42 @@ onMounted(() => {
 
              <table v-else class="w-full text-sm text-left">
                 <thead class="text-xs text-gray-400 uppercase font-bold border-b">
-                   <tr><th class="p-6">排名</th><th class="p-6">名称</th><th class="p-6">球队</th><th class="p-6 text-center">核心数据</th></tr>
+                   <tr v-if="viewType === 'standings'">
+                       <th class="p-6">排名</th>
+                       <th class="p-6">球队</th>
+                       <th class="p-6 text-center">赛</th>
+                       <th class="p-6 text-center">胜</th>
+                       <th class="p-6 text-center">平</th>
+                       <th class="p-6 text-center">负</th>
+                       <th class="p-6 text-center">进/失</th>
+                       <th class="p-6 text-center">积分</th>
+                   </tr>
+                   <tr v-else>
+                       <th class="p-6">排名</th>
+                       <th class="p-6">球员</th>
+                       <th class="p-6">球队</th>
+                       <th class="p-6 text-center">{{ viewType === 'goals' ? '进球数' : '助攻数' }}</th>
+                   </tr>
                 </thead>
                 <tbody class="divide-y">
                    <tr v-for="(item, i) in fullRankingData" :key="i" class="hover:bg-blue-50/50 transition-colors cursor-pointer" @click="viewType==='standings' ? navigateTo('team_detail', item) : navigateTo('player_detail', {person_id: item.id})">
-                      <td class="p-6"><span :class="['w-8 h-8 flex items-center justify-center rounded-lg font-black', i<3 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-400']">{{item.stats?.rank || item.rank}}</span></td>
-                      <td class="p-6 flex items-center gap-4"><img :src="item.logo || item.avatar" class="w-10 h-10 object-contain rounded-full shadow-sm"> <span class="font-bold text-lg">{{item.name}}</span></td>
-                      <td class="p-6 text-gray-400 font-bold">{{item.team || activeLeague.cn}}</td>
-                      <td class="p-6 text-center"><span class="text-2xl font-black text-blue-600">{{item.stats?.pts || item.count}}</span></td>
+                      <td class="p-6"><span :class="['w-8 h-8 flex items-center justify-center rounded-lg font-black', (item.stats?.rank || item.rank) <= 3 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-400']">{{item.stats?.rank || item.rank}}</span></td>
+
+                      <template v-if="viewType === 'standings'">
+                          <td class="p-6 flex items-center gap-4"><img :src="item.logo" class="w-10 h-10 object-contain"> <span class="font-bold text-lg">{{item.name}}</span></td>
+                          <td class="p-6 text-center font-medium text-gray-500">{{item.stats.played}}</td>
+                          <td class="p-6 text-center font-bold text-green-600 bg-green-50/30 rounded-lg">{{item.stats.won}}</td>
+                          <td class="p-6 text-center font-medium text-gray-400">{{item.stats.draw}}</td>
+                          <td class="p-6 text-center font-medium text-red-500">{{item.stats.lost}}</td>
+                          <td class="p-6 text-center font-mono text-gray-500">{{item.stats.gf}} / {{item.stats.ga}}</td>
+                          <td class="p-6 text-center font-black text-2xl text-blue-600">{{item.stats.pts}}</td>
+                      </template>
+
+                      <template v-else>
+                          <td class="p-6 flex items-center gap-4"><img :src="item.avatar" class="w-10 h-10 object-contain rounded-full shadow-sm"> <span class="font-bold text-lg">{{item.name}}</span></td>
+                          <td class="p-6 text-gray-400 font-bold">{{item.team || activeLeague.cn}}</td>
+                          <td class="p-6 text-center"><span class="text-2xl font-black text-blue-600">{{item.count}}</span></td>
+                      </template>
                    </tr>
                 </tbody>
              </table>

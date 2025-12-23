@@ -66,12 +66,14 @@ watch(() => props.league, fetchData)
             <table class="w-full text-sm text-left">
               <thead class="bg-white text-xs uppercase text-slate-400 font-bold">
                 <tr>
-                  <th class="px-6 py-4">Rank</th>
-                  <th class="px-6 py-4">Team</th>
-                  <th class="px-6 py-4">P</th>
-                  <th class="px-6 py-4">W/D/L</th>
-                  <th class="px-6 py-4">GD</th>
-                  <th class="px-6 py-4">Pts</th>
+                  <th class="px-6 py-4">排名</th>
+                  <th class="px-6 py-4">球队</th>
+                  <th class="px-6 py-4 text-center">赛</th>
+                  <th class="px-6 py-4 text-center">胜</th>
+                  <th class="px-6 py-4 text-center">平</th>
+                  <th class="px-6 py-4 text-center">负</th>
+                  <th class="px-6 py-4 text-center">进/失</th>
+                  <th class="px-6 py-4 text-center">积分</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -83,10 +85,16 @@ watch(() => props.league, fetchData)
                     <img :src="t.logo" class="w-10 h-10 object-contain">
                     <span class="font-bold text-base">{{ t.name }}</span>
                   </td>
-                  <td class="px-6 py-5 font-medium text-gray-500">{{ t.stats.played }}</td>
-                  <td class="px-6 py-5 font-medium"><span class="text-green-600">{{ t.stats.won }}</span> / <span class="text-gray-400">{{ t.stats.draw }}</span> / <span class="text-red-500">{{ t.stats.lost }}</span></td>
-                  <td class="px-6 py-5 font-mono text-xs bg-gray-50 rounded px-2 py-1 w-fit">{{ t.stats.gf }}:{{ t.stats.ga }}</td>
-                  <td class="px-6 py-5 font-black text-xl text-indigo-600">{{ t.stats.pts }}</td>
+                  <td class="px-6 py-5 font-medium text-gray-500 text-center">{{ t.stats.played }}</td>
+
+                  <td class="px-6 py-5 font-bold text-green-600 text-center">{{ t.stats.won }}</td>
+                  <td class="px-6 py-5 font-medium text-gray-400 text-center">{{ t.stats.draw }}</td>
+                  <td class="px-6 py-5 font-medium text-red-500 text-center">{{ t.stats.lost }}</td>
+
+                  <td class="px-6 py-5 font-mono text-xs text-center">
+                    <span class="bg-gray-50 rounded px-2 py-1">{{ t.stats.gf }}:{{ t.stats.ga }}</span>
+                  </td>
+                  <td class="px-6 py-5 font-black text-xl text-indigo-600 text-center">{{ t.stats.pts }}</td>
                 </tr>
               </tbody>
             </table>

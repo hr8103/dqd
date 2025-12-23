@@ -141,14 +141,13 @@ def get_squad(team_id):
 
 @app.route('/api/rankings/<int:league_id>/<string:type>', methods=['GET'])
 def get_rankings(league_id, type):
-    # 🔥 3. 榜单：共用联赛缓存 key，如果前面 get_teams 刷过了，这里直接命中缓存
-    check_and_update(f"league_{league_id}", football_spider.update_league_data, league_id)
+    # check_and_update... (保持原样)
 
     conn = get_db_connection()
     if not conn: return jsonify([])
     try:
         with conn.cursor() as cursor:
-            sql = "SELECT r.*, p.avatar_url FROM rankings r LEFT JOIN players p ON r.person_id = p.person_id WHERE r.league_id = %s AND r.type = %s ORDER BY r.`rank` ASC LIMIT 20"
+            sql = "SELECT r.*, p.avatar_url FROM rankings r LEFT JOIN players p ON r.person_id = p.person_id WHERE r.league_id = %s AND r.type = %s ORDER BY r.`rank` ASC"
             cursor.execute(sql, (league_id, type))
             data = cursor.fetchall()
             res = []
@@ -193,6 +192,7 @@ def get_player(person_id):
                 'club': profile['club'], 'number': profile['number'], 'pos': '球员',
                 'age': profile['age'], 'height': profile['height'], 'weight': profile['weight'],
                 'foot': profile['foot'],
+                'birth_date': profile['birth_date'],
                 'country': profile['nationality'], 'avatar': profile['photo_url'],
                 'ability_total': profile['ability_total'],
                 'radar': radar, 'history': history

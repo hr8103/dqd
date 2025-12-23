@@ -141,7 +141,7 @@ const radarOption = computed(() => {
                     <th class="px-6 py-4 text-center">首发</th>
                     <th class="px-6 py-4 text-center">进球</th>
                     <th class="px-6 py-4 text-center">助攻</th>
-                    <th class="px-6 py-4 text-center">红/黄</th>
+                    <th class="px-6 py-4 text-center">红牌/黄牌</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100">

@@ -363,7 +363,7 @@ onMounted(() => {
            <div class="bg-white dark:bg-slate-800 rounded-[3rem] border shadow-2xl overflow-hidden">
              <div class="p-8 bg-slate-50 dark:bg-slate-700 font-black border-b text-xl flex items-center gap-3">
                <Trophy class="text-yellow-500" v-if="viewType==='standings'"/>
-               {{viewType === 'standings' ? '完整积分榜' : (viewType === 'goals' ? '本赛季射手王排行榜' : '本赛季助攻王排行榜')}}
+               {{viewType === 'standings' ? '联赛积分榜' : (viewType === 'goals' ? '射手榜' : '助攻榜')}}
              </div>
 
              <div v-if="loading" class="p-20 text-center flex flex-col items-center"><Loader2 class="animate-spin mb-4 text-blue-600" size="40"/>数据拉取中...</div>

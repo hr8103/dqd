@@ -4,7 +4,8 @@ import axios from 'axios'
 import {
   Trophy, Users, MapPin, ChevronRight, List,
   Goal, Footprints, LogOut, User, ArrowLeft,
-  Phone, Mail, Globe, Calendar, Sun, Moon, Shield, Loader2
+  Phone, Mail, Globe, Calendar, Sun, Moon, Shield, Loader2,
+  Search, ArrowRightLeft, X, Swords
 } from 'lucide-vue-next'
 
 // --- ECharts 配置 ---
@@ -16,17 +17,15 @@ import VChart from 'vue-echarts'
 
 use([CanvasRenderer, RadarChart, TitleComponent, TooltipComponent, LegendComponent, RadarComponent])
 
-// === 1. 核心状态 ===
 const API_BASE = 'http://localhost:5000/api'
 const isDark = ref(false)
 const user = ref(null)
 const leagues = ref([])
 const activeLeague = ref(null)
-const currentView = ref('dashboard') // dashboard, team_detail, player_detail, full_ranking
+const currentView = ref('dashboard')
 const viewData = ref(null)
 const viewType = ref('')
 
-// 数据存放
 const teams = ref([])
 const scorers = ref([])
 const assists = ref([])
@@ -35,7 +34,20 @@ const playerProfile = ref(null)
 const loading = ref(false)
 const fullRankingData = ref([])
 
-// === 2. 逻辑函数 ===
+const searchLoading = ref(false)
+const searchTeams = ref([])
+const searchResults = ref([])
+const searchFilters = ref({
+  name: '', league_id: '', team_id: '', position: '',
+  nationality: '', foot: '', rating_min: null, rating_max: null, age_min: null, age_max: null
+})
+
+const showCompareModal = ref(false)
+const compareKeyword = ref('')
+const compareSearchList = ref([])
+const compareTarget = ref(null)
+const compareLoading = ref(false)
+
 const toggleTheme = () => {
   isDark.value = !isDark.value
   document.documentElement.classList.toggle('dark')
@@ -51,7 +63,7 @@ const fetchLeagues = async () => {
     const res = await axios.get(`${API_BASE}/leagues`)
     leagues.value = res.data
     if (leagues.value.length > 0) activeLeague.value = leagues.value[0]
-  } catch(e) { console.error("API 未启动或连接失败", e) }
+  } catch(e) { console.error("API Error", e) }
 }
 
 const navigateTo = (view, data = null, type = '') => {
@@ -65,8 +77,78 @@ const goBack = () => {
   viewData.value = null
 }
 
-// === 3. 数据监听与抓取 ===
-// 监听联赛切换
+const clearSearch = () => {
+  searchFilters.value = {
+    name: '', league_id: '', team_id: '', position: '',
+    nationality: '', foot: '', rating_min: null, rating_max: null, age_min: null, age_max: null
+  }
+}
+
+const handleSearch = async () => {
+  searchLoading.value = true
+  currentView.value = 'search_results'
+  viewData.value = null
+  try {
+    const res = await axios.post(`${API_BASE}/search/players`, searchFilters.value)
+    searchResults.value = res.data
+  } catch (e) {
+    console.error("搜索失败", e)
+    searchResults.value = []
+  } finally {
+    searchLoading.value = false
+  }
+}
+
+const openCompareModal = () => {
+  showCompareModal.value = true
+  compareKeyword.value = ''
+  compareSearchList.value = []
+  compareTarget.value = null
+}
+
+const closeCompareModal = () => {
+  showCompareModal.value = false
+  compareTarget.value = null
+}
+
+const handleCompareSearch = async () => {
+  if (!compareKeyword.value) return
+  compareLoading.value = true
+  try {
+    const res = await axios.post(`${API_BASE}/search/players`, { name: compareKeyword.value })
+    compareSearchList.value = res.data.filter(p => p.id !== playerProfile.value.id)
+  } finally {
+    compareLoading.value = false
+  }
+}
+
+const selectComparePlayer = async (id) => {
+  compareLoading.value = true
+  try {
+    const res = await axios.get(`${API_BASE}/player/${id}`)
+    compareTarget.value = res.data
+  } finally {
+    compareLoading.value = false
+  }
+}
+
+const getSeasonStats = (player) => {
+  if (!player || !player.history || player.history.length === 0) return null
+  return player.history.find(h => h.season === '25/26' || h.season === '2025-2026') || player.history[0]
+}
+
+watch(() => searchFilters.value.league_id, async (newVal) => {
+  searchFilters.value.team_id = ''
+  if (newVal) {
+    try {
+      const res = await axios.get(`${API_BASE}/teams/${newVal}`)
+      searchTeams.value = res.data
+    } catch (e) { console.error(e) }
+  } else {
+    searchTeams.value = []
+  }
+})
+
 watch(activeLeague, async (newVal) => {
   if (newVal && currentView.value === 'dashboard') {
     loading.value = true
@@ -83,7 +165,6 @@ watch(activeLeague, async (newVal) => {
   }
 }, { immediate: true })
 
-// 监听视图切换（加载详情）
 watch([currentView, () => viewData.value], async ([view, data]) => {
   if (view === 'player_detail' && data?.person_id) {
     loading.value = true
@@ -105,7 +186,6 @@ watch([currentView, () => viewData.value], async ([view, data]) => {
   }
 })
 
-// 雷达图配置
 const radarOption = computed(() => {
   const p = playerProfile.value
   if (!p || !p.radar || p.radar.length === 0) return null
@@ -123,8 +203,47 @@ const radarOption = computed(() => {
   }
 })
 
+const compareRadarOption = computed(() => {
+  const p1 = playerProfile.value
+  const p2 = compareTarget.value
+  if (!p1 || !p2 || !p1.radar || !p2.radar) return null
+
+  return {
+    tooltip: { trigger: 'item' },
+    legend: {
+      data: [p1.name_cn, p2.name_cn],
+      textStyle: { color: isDark.value ? '#fff' : '#333', fontWeight: 'bold' },
+      bottom: 0
+    },
+    radar: {
+      indicator: p1.radar.map(i => ({ name: i.subject, max: 100 })),
+      shape: 'polygon',
+      axisName: { color: isDark.value ? '#94a3b8' : '#64748b', fontWeight: 'bold' },
+      splitLine: { lineStyle: { color: isDark.value ? '#334155' : '#e2e8f0' } }
+    },
+    series: [{
+      type: 'radar',
+      data: [
+        {
+          value: p1.radar.map(i => i.A),
+          name: p1.name_cn,
+          areaStyle: { color: '#3b82f6', opacity: 0.2 },
+          lineStyle: { color: '#3b82f6', width: 3 },
+          itemStyle: { color: '#3b82f6' }
+        },
+        {
+          value: p2.radar.map(i => i.A),
+          name: p2.name_cn,
+          areaStyle: { color: '#ef4444', opacity: 0.2 },
+          lineStyle: { color: '#ef4444', width: 3 },
+          itemStyle: { color: '#ef4444' }
+        }
+      ]
+    }]
+  }
+})
+
 onMounted(() => {
-  // 开发阶段自动登录
   handleLogin()
 })
 </script>
@@ -141,7 +260,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <aside :class="['w-72 border-r flex flex-col shrink-0 transition-colors', isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200']">
+    <aside :class="['w-72 border-r flex flex-col shrink-0 transition-colors overflow-hidden', isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200']">
       <div class="p-6">
         <div :class="['flex items-center gap-3 p-3 rounded-2xl border', isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-100']">
           <img :src="user?.avatar" class="w-10 h-10 rounded-full border-2 border-white">
@@ -151,21 +270,90 @@ onMounted(() => {
           </div>
         </div>
       </div>
-      <div class="flex-1 overflow-y-auto px-4 space-y-1">
-        <div class="px-3 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">联赛导航</div>
-        <button
-          v-for="l in leagues" :key="l.id"
-          @click="activeLeague = l; currentView = 'dashboard'"
-          :class="['w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition group', activeLeague?.id === l.id ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50']"
-        >
-          <img :src="l.logo" class="w-6 h-6 object-contain" :class="{'brightness-200': activeLeague?.id === l.id}">
-          <span class="font-medium text-sm">{{ l.cn }}</span>
-        </button>
+
+      <div class="flex-1 overflow-y-auto px-4 py-4 space-y-8 scrollbar-thin">
+        <div>
+           <div class="px-3 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">联赛导航</div>
+           <div class="space-y-1">
+             <button
+               v-for="l in leagues" :key="l.id"
+               @click="activeLeague = l; currentView = 'dashboard'"
+               :class="['w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition group', activeLeague?.id === l.id && currentView !== 'search_results' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-800']"
+             >
+               <img :src="l.logo" class="w-6 h-6 object-contain" :class="{'brightness-200': activeLeague?.id === l.id}">
+               <span class="font-medium text-sm">{{ l.cn }}</span>
+             </button>
+           </div>
+        </div>
+
+        <div>
+           <div class="px-3 mb-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest flex justify-between items-center">
+             <span>高级查询</span>
+             <button @click="clearSearch" class="text-blue-500 hover:underline scale-90">重置</button>
+           </div>
+
+           <div :class="['p-4 rounded-3xl border space-y-3', isDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-100']">
+              <input v-model="searchFilters.name" placeholder="输入球员姓名..."
+                :class="['w-full px-3 py-2 rounded-xl text-xs font-bold outline-none transition-all', isDark ? 'bg-slate-700 text-white focus:bg-slate-600' : 'bg-white text-slate-700 border border-slate-200 focus:border-blue-500']">
+
+              <select v-model="searchFilters.league_id" :class="['w-full px-3 py-2 rounded-xl text-xs font-bold outline-none appearance-none', isDark ? 'bg-slate-700 text-white' : 'bg-white text-slate-700 border border-slate-200']">
+                 <option value="">所有联赛</option>
+                 <option v-for="l in leagues" :key="l.id" :value="l.id">{{ l.cn }}</option>
+              </select>
+
+              <select v-model="searchFilters.team_id" :disabled="!searchFilters.league_id" :class="['w-full px-3 py-2 rounded-xl text-xs font-bold outline-none appearance-none disabled:opacity-50', isDark ? 'bg-slate-700 text-white' : 'bg-white text-slate-700 border border-slate-200']">
+                 <option value="">{{ searchFilters.league_id ? '所有球队' : '请先选择联赛' }}</option>
+                 <option v-for="t in searchTeams" :key="t.id" :value="t.id">{{ t.name }}</option>
+              </select>
+
+              <div class="flex gap-2">
+                 <select v-model="searchFilters.position" :class="['flex-1 px-3 py-2 rounded-xl text-xs font-bold outline-none appearance-none', isDark ? 'bg-slate-700 text-white' : 'bg-white text-slate-700 border border-slate-200']">
+                    <option value="">位置</option>
+                    <option value="前锋">前锋</option>
+                    <option value="中场">中场</option>
+                    <option value="后卫">后卫</option>
+                    <option value="门将">门将</option>
+                 </select>
+                 <select v-model="searchFilters.foot" :class="['flex-1 px-3 py-2 rounded-xl text-xs font-bold outline-none appearance-none', isDark ? 'bg-slate-700 text-white' : 'bg-white text-slate-700 border border-slate-200']">
+                    <option value="">惯用脚</option>
+                    <option value="右脚">右脚</option>
+                    <option value="左脚">左脚</option>
+                    <option value="双脚">双脚</option>
+                 </select>
+              </div>
+
+              <input v-model="searchFilters.nationality" placeholder="国籍 (如: 阿根廷)"
+                :class="['w-full px-3 py-2 rounded-xl text-xs font-bold outline-none', isDark ? 'bg-slate-700 text-white' : 'bg-white text-slate-700 border border-slate-200']">
+
+              <div class="space-y-1">
+                <div class="text-[10px] text-gray-400 font-bold uppercase">总评区间</div>
+                <div class="flex gap-2 items-center">
+                  <input type="number" v-model.number="searchFilters.rating_min" placeholder="0" class="w-full px-2 py-1.5 rounded-lg text-xs text-center font-bold bg-white dark:bg-slate-700 border-none outline-none">
+                  <span class="text-gray-400">-</span>
+                  <input type="number" v-model.number="searchFilters.rating_max" placeholder="99" class="w-full px-2 py-1.5 rounded-lg text-xs text-center font-bold bg-white dark:bg-slate-700 border-none outline-none">
+                </div>
+              </div>
+
+              <div class="space-y-1">
+                <div class="text-[10px] text-gray-400 font-bold uppercase">年龄区间</div>
+                <div class="flex gap-2 items-center">
+                  <input type="number" v-model.number="searchFilters.age_min" placeholder="15" class="w-full px-2 py-1.5 rounded-lg text-xs text-center font-bold bg-white dark:bg-slate-700 border-none outline-none">
+                  <span class="text-gray-400">-</span>
+                  <input type="number" v-model.number="searchFilters.age_max" placeholder="45" class="w-full px-2 py-1.5 rounded-lg text-xs text-center font-bold bg-white dark:bg-slate-700 border-none outline-none">
+                </div>
+              </div>
+
+              <button @click="handleSearch" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-transform active:scale-95 shadow-lg shadow-blue-500/30">
+                 <Search size="16"/> 开始搜索
+              </button>
+           </div>
+        </div>
+
       </div>
       <div class="p-4 border-t"><button @click="user=null" class="flex items-center gap-2 text-gray-400 text-sm hover:text-red-500 transition-colors"><LogOut size="16"/> 退出登录</button></div>
     </aside>
 
-    <main class="flex-1 flex flex-col overflow-hidden">
+    <main class="flex-1 flex flex-col overflow-hidden relative">
       <header :class="['h-16 border-b flex items-center justify-between px-8 shrink-0', isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white/50 border-slate-200 backdrop-blur-md']">
         <div class="flex items-center gap-2 text-sm text-gray-400"><Shield size="16"/> Dashboard <ChevronRight size="14"/> {{activeLeague?.cn}}</div>
         <button @click="toggleTheme" class="p-2 rounded-full border bg-white shadow-sm hover:rotate-12 transition-transform"><Sun v-if="isDark" class="text-yellow-500"/><Moon v-else class="text-blue-500"/></button>
@@ -195,7 +383,7 @@ onMounted(() => {
             <div :class="['col-span-2 rounded-3xl border shadow-sm overflow-hidden', isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-100']">
               <div class="p-6 border-b flex justify-between items-center bg-gray-50/30">
                 <h3 class="font-bold flex items-center gap-2"><List class="text-blue-500"/> 实时积分榜</h3>
-                <button @click="navigateTo('full_ranking', null, 'standings')" class="text-xs font-bold text-blue-600 hover:underline">查看完整</button>
+                <button @click="navigateTo('full_ranking', null, 'standings')" class="text-xs font-bold text-blue-600 hover:underline">查看详情</button>
               </div>
               <table class="w-full text-sm text-left">
                 <thead class="text-xs text-gray-400 uppercase"><tr class="border-b">
@@ -263,7 +451,12 @@ onMounted(() => {
         </div>
 
         <div v-if="currentView === 'player_detail'" class="animate-in slide-in-from-right-4">
-          <button @click="goBack" class="mb-6 flex items-center gap-2 text-gray-400 hover:text-blue-600 transition-colors font-bold"><ArrowLeft size="18"/> 返回列表</button>
+          <div class="flex justify-between items-center mb-6">
+             <button @click="goBack" class="flex items-center gap-2 text-gray-400 hover:text-blue-600 transition-colors font-bold"><ArrowLeft size="18"/> 返回列表</button>
+             <button v-if="playerProfile" @click="openCompareModal" class="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 transition-all active:scale-95">
+                <Swords size="18"/> 球员对比
+             </button>
+          </div>
 
           <div v-if="loading && !playerProfile" class="p-20 text-center text-gray-400 flex flex-col items-center"><Loader2 class="animate-spin mb-4" size="40"/> 正在同步档案...</div>
 
@@ -278,8 +471,8 @@ onMounted(() => {
                  <h1 class="text-5xl font-black mb-4 tracking-tighter">{{playerProfile.name_cn}}</h1>
                  <div class="flex gap-3">
                     <span class="bg-white/10 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 border border-white/5">
-                       <img v-if="playerProfile.nationality_logo" :src="playerProfile.nationality_logo" class="w-5 h-3.5 rounded-sm">
                        {{playerProfile.country}}
+                       <img v-if="playerProfile.nationality_logo" :src="playerProfile.nationality_logo" class="w-5 h-3.5 rounded-sm">
                     </span>
                     <span class="bg-white/10 px-4 py-2 rounded-xl text-xs font-bold border border-white/5">{{playerProfile.club}}</span>
                     <span class="bg-white/10 px-4 py-2 rounded-xl text-xs font-bold border border-white/5">{{playerProfile.number}}</span>
@@ -299,8 +492,8 @@ onMounted(() => {
                            <div v-for="(val, lab) in {俱乐部:playerProfile.club, '国籍/会籍':playerProfile.country, 位置:playerProfile.pos, 号码:playerProfile.number, 生日:playerProfile.birth_date}" :key="lab" class="flex justify-between items-center text-sm">
                               <span class="text-gray-400 font-bold text-xs uppercase">{{lab}}</span>
                               <div class="flex items-center gap-2">
-                                <img v-if="lab==='国籍/会籍' && playerProfile.nationality_logo" :src="playerProfile.nationality_logo" class="w-5 h-3.5 rounded shadow-sm">
                                 <span class="font-bold text-slate-700 dark:text-slate-200">{{val}}</span>
+                                <img v-if="lab==='国籍/会籍' && playerProfile.nationality_logo" :src="playerProfile.nationality_logo" class="w-5 h-3.5 rounded shadow-sm">
                               </div>
                            </div>
                         </div>
@@ -400,17 +593,166 @@ onMounted(() => {
            </div>
         </div>
 
+        <div v-if="currentView === 'search_results'" class="animate-in fade-in">
+           <div class="flex items-center gap-3 mb-6">
+              <button @click="goBack" class="p-2 rounded-full bg-white hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"><ArrowLeft size="20"/></button>
+              <h2 class="text-2xl font-black">搜索结果</h2>
+              <span class="text-sm text-gray-400 font-bold bg-gray-100 dark:bg-slate-800 px-3 py-1 rounded-full">共 {{ searchResults.length }} 条</span>
+           </div>
+
+           <div v-if="searchLoading" class="p-20 text-center flex flex-col items-center text-gray-400">
+              <Loader2 class="animate-spin mb-4 text-blue-600" size="40"/>正在全库检索...
+           </div>
+
+           <div v-else-if="searchResults.length === 0" class="p-20 text-center text-gray-400 flex flex-col items-center bg-white dark:bg-slate-800 rounded-[3rem] border border-dashed border-gray-300">
+              <Search size="48" class="mb-4 text-gray-300"/>
+              <p class="font-bold">未找到符合条件的球员</p>
+              <button @click="clearSearch" class="mt-4 text-blue-600 text-sm font-bold hover:underline">清空条件重新尝试</button>
+           </div>
+
+           <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              <div v-for="p in searchResults" :key="p.id" @click="navigateTo('player_detail', {person_id: p.id})"
+                   class="bg-white dark:bg-slate-800 p-5 rounded-3xl border shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all cursor-pointer group relative overflow-hidden">
+                 <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <img :src="p.team_logo" class="w-16 h-16 object-contain">
+                 </div>
+                 <div class="flex items-start gap-4 mb-4 relative z-10">
+                    <img :src="p.avatar" class="w-14 h-14 rounded-full bg-gray-50 border shadow-sm object-cover">
+                    <div>
+                       <div class="font-black text-lg text-slate-800 dark:text-slate-200 line-clamp-1">{{ p.name }}</div>
+                       <div class="text-xs text-gray-400 font-bold mb-1">{{ p.team }}</div>
+                       <div class="flex gap-2">
+                         <span class="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] font-bold">{{ p.pos }}</span>
+                         <span class="px-2 py-0.5 bg-gray-50 text-gray-500 rounded text-[10px] font-bold">{{ p.nationality }}</span>
+                       </div>
+                    </div>
+                 </div>
+                 <div class="flex justify-between items-end border-t pt-3 relative z-10">
+                    <div class="text-xs text-gray-400 font-bold">
+                       <div>{{ p.age }}</div>
+                       <div>{{ p.foot }}</div>
+                    </div>
+                    <div :class="['text-2xl font-black', p.rating >= 80 ? 'text-blue-600' : (p.rating >= 70 ? 'text-green-500' : 'text-gray-400')]">
+                       {{ p.rating }}
+                    </div>
+                 </div>
+              </div>
+           </div>
+        </div>
+
       </div>
+
+      <div v-if="showCompareModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
+         <div class="bg-white dark:bg-slate-900 w-[90%] max-w-5xl max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col relative">
+            <button @click="closeCompareModal" class="absolute top-6 right-6 p-2 rounded-full bg-gray-100 dark:bg-slate-800 hover:rotate-90 transition-transform"><X size="20"/></button>
+
+            <div class="p-8 border-b dark:border-slate-800">
+               <h2 class="text-2xl font-black flex items-center gap-3"><Swords class="text-indigo-600"/> 球员对比</h2>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-8 scrollbar-thin">
+
+               <div v-if="!compareTarget" class="max-w-xl mx-auto text-center space-y-6">
+                  <div class="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto"><Search size="32"/></div>
+                  <h3 class="text-xl font-bold">选择要与 {{playerProfile.name_cn}} 对比的球员</h3>
+                  <div class="relative">
+                     <input v-model="compareKeyword" @keyup.enter="handleCompareSearch" placeholder="输入球员名字回车搜索..." class="w-full pl-12 pr-4 py-4 rounded-2xl bg-gray-50 dark:bg-slate-800 border-2 border-transparent focus:border-indigo-500 outline-none font-bold text-lg">
+                     <Search class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"/>
+                     <button @click="handleCompareSearch" class="absolute right-3 top-1/2 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1.5 rounded-xl font-bold text-sm">搜索</button>
+                  </div>
+
+                  <div v-if="compareLoading" class="py-10"><Loader2 class="animate-spin mx-auto text-indigo-500"/></div>
+
+                  <div v-else class="space-y-3 text-left">
+                     <div v-for="p in compareSearchList" :key="p.id" @click="selectComparePlayer(p.id)" class="flex items-center gap-4 p-4 rounded-2xl border hover:bg-indigo-50 cursor-pointer transition-all group">
+                        <img :src="p.avatar" class="w-12 h-12 rounded-full bg-gray-100 object-cover">
+                        <div class="flex-1">
+                           <div class="font-bold">{{p.name}}</div>
+                           <div class="text-xs text-gray-400">{{p.team}}</div>
+                        </div>
+                        <div class="font-black text-indigo-600">{{p.rating}}</div>
+                        <ChevronRight size="16" class="text-gray-300 group-hover:text-indigo-500"/>
+                     </div>
+                  </div>
+               </div>
+
+               <div v-else class="space-y-10 animate-in slide-in-from-bottom-4">
+                  <div class="flex items-center justify-center gap-10 md:gap-20">
+                     <div class="text-center">
+                        <div class="relative inline-block">
+                           <img :src="playerProfile.avatar" class="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-blue-500 shadow-xl object-cover bg-white">
+                           <div class="absolute -bottom-2 -right-2 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-black">{{playerProfile.ability_total}}</div>
+                        </div>
+                        <h3 class="mt-4 text-xl font-black">{{playerProfile.name_cn}}</h3>
+                        <p class="text-sm text-gray-400 font-bold">{{playerProfile.club}}</p>
+                     </div>
+
+                     <div class="text-2xl font-black text-gray-300 italic">VS</div>
+
+                     <div class="text-center">
+                        <div class="relative inline-block">
+                           <img :src="compareTarget.avatar" class="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-red-500 shadow-xl object-cover bg-white">
+                           <div class="absolute -bottom-2 -right-2 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-black">{{compareTarget.ability_total}}</div>
+                        </div>
+                        <h3 class="mt-4 text-xl font-black">{{compareTarget.name_cn}}</h3>
+                        <p class="text-sm text-gray-400 font-bold">{{compareTarget.club}}</p>
+                        <button @click="compareTarget = null" class="mt-2 text-xs text-indigo-500 font-bold hover:underline">更换对手</button>
+                     </div>
+                  </div>
+
+                  <div class="bg-gray-50 dark:bg-slate-800 rounded-3xl p-6 h-80 relative">
+                     <div class="absolute top-4 left-4 text-xs font-bold text-gray-400 uppercase tracking-widest">能力六维图</div>
+                     <v-chart :option="compareRadarOption" autoresize />
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div class="bg-white dark:bg-slate-800 rounded-3xl border p-6">
+                        <h4 class="font-bold text-center mb-6 text-gray-400 text-sm uppercase tracking-widest">基础身体素质</h4>
+                        <div class="space-y-4">
+                           <div v-for="key in ['height', 'weight', 'age', 'foot']" :key="key" class="flex justify-between items-center py-2 border-b border-dashed border-gray-100 last:border-0">
+                              <div class="font-black text-blue-600 w-1/3 text-right">{{playerProfile[key]}}</div>
+                              <div class="text-xs text-gray-400 font-bold uppercase w-1/3 text-center">
+                                 {{key === 'height' ? '身高' : (key === 'weight' ? '体重' : (key === 'age' ? '年龄' : '惯用脚'))}}
+                              </div>
+                              <div class="font-black text-red-500 w-1/3 text-left">{{compareTarget[key]}}</div>
+                           </div>
+                        </div>
+                     </div>
+
+                     <div class="bg-white dark:bg-slate-800 rounded-3xl border p-6">
+                        <h4 class="font-bold text-center mb-6 text-gray-400 text-sm uppercase tracking-widest">本赛季数据 (25/26)</h4>
+                        <template v-if="getSeasonStats(playerProfile) && getSeasonStats(compareTarget)">
+                           <div class="space-y-4">
+                              <div v-for="k in ['matches', 'goals', 'assists', 'yellow', 'red']" :key="k" class="flex justify-between items-center py-2 border-b border-dashed border-gray-100 last:border-0">
+                                 <div class="font-black text-blue-600 w-1/3 text-right">{{getSeasonStats(playerProfile)[k]}}</div>
+                                 <div class="text-xs text-gray-400 font-bold uppercase w-1/3 text-center">
+                                    {{k === 'matches' ? '出场' : (k === 'goals' ? '进球' : (k === 'assists' ? '助攻' : (k === 'yellow' ? '黄牌' : '红牌')))}}
+                                 </div>
+                                 <div class="font-black text-red-500 w-1/3 text-left">{{getSeasonStats(compareTarget)[k]}}</div>
+                              </div>
+                           </div>
+                        </template>
+                        <div v-else class="text-center text-gray-400 py-10 font-bold">暂无完整赛季数据</div>
+                     </div>
+                  </div>
+
+               </div>
+            </div>
+         </div>
+      </div>
+
     </main>
   </div>
 </template>
 
 <style>
-/* 简单动画 */
 .animate-in { animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-/* 隐藏滚动条 */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+.dark .scrollbar-thin::-webkit-scrollbar-thumb { background: #334155; }
 </style>
